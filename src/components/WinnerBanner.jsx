@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion' // eslint-disable-line no-unused-vars
 import confetti from 'canvas-confetti'
 import { ALGORITHMS } from '../algorithms/sorting'
 

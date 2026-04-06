@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { motion } from 'framer-motion' // eslint-disable-line no-unused-vars
 
 const BAR_COLORS = {
   default: '#2a2a4e',
@@ -8,27 +8,35 @@ const BAR_COLORS = {
   sorted: '#39ff14',
 }
 
-export default function Visualizer({ state, accentColor, label, arraySize }) {
-  if (!state) return null
+const EMPTY = []
 
-  const { array, comparing, swapping, sorted } = state
-  const maxVal = useMemo(() => Math.max(...array), [array])
+export default function Visualizer({ state, accentColor, label, onLabelClick }) {
+  const array = state ? state.array : EMPTY
+  const comparing = state ? state.comparing : EMPTY
+  const swapping = state ? state.swapping : EMPTY
+  const sorted = state ? state.sorted : EMPTY
 
+  const maxVal = useMemo(() => (array.length > 0 ? Math.max(...array) : 1), [array])
   const comparingSet = useMemo(() => new Set(comparing), [comparing])
   const swappingSet = useMemo(() => new Set(swapping), [swapping])
   const sortedSet = useMemo(() => new Set(sorted), [sorted])
+
+  if (!state) return null
 
   const barWidth = Math.max(1, Math.floor(100 / array.length * 10) / 10)
   const gap = array.length > 100 ? 0.5 : array.length > 50 ? 1 : 2
 
   return (
     <div className="flex flex-col items-center w-full">
-      <div
-        className="text-sm font-bold tracking-widest uppercase mb-2"
+      <button
+        onClick={onLabelClick}
+        className="text-sm font-bold tracking-widest uppercase mb-2 cursor-pointer
+          hover:underline underline-offset-4 decoration-dotted transition-all duration-200 bg-transparent border-none"
         style={{ color: accentColor, textShadow: `0 0 10px ${accentColor}50` }}
+        title="Click for algorithm info"
       >
-        {label}
-      </div>
+        {label} ℹ
+      </button>
       <div
         className="flex items-end justify-center w-full rounded-lg overflow-hidden"
         style={{

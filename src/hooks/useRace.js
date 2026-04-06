@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { ALGORITHMS } from '../algorithms/sorting'
-import { generateRandomArray } from '../utils/helpers'
+import { generateArray, parseCustomArray } from '../utils/helpers'
+import { playTone, isSoundEnabled } from '../utils/sound'
 
 const SPEED_MAP = {
   slow: 80,
@@ -11,39 +12,55 @@ const SPEED_MAP = {
 
 export function useRace() {
   const [arraySize, setArraySize] = useState(50)
+  const [arrayType, setArrayType] = useState('random')
+  const [customArrayInput, setCustomArrayInput] = useState('')
   const [speed, setSpeed] = useState('medium')
   const [algo1Key, setAlgo1Key] = useState('bubble')
   const [algo2Key, setAlgo2Key] = useState('merge')
+  const [algo3Key, setAlgo3Key] = useState('')
   const [isRacing, setIsRacing] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [winner, setWinner] = useState(null)
+  const [raceHistory, setRaceHistory] = useState([])
 
   const [state1, setState1] = useState(null)
   const [state2, setState2] = useState(null)
+  const [state3, setState3] = useState(null)
 
   const [elapsed1, setElapsed1] = useState(0)
   const [elapsed2, setElapsed2] = useState(0)
+  const [elapsed3, setElapsed3] = useState(0)
 
   const raceRef = useRef({ cancelled: false })
   const pauseRef = useRef(false)
   const speedRef = useRef(speed)
 
-  speedRef.current = speed
+  useEffect(() => {
+    speedRef.current = speed
+  }, [speed])
 
-  const sleep = (ms) => {
+  const sleep = useCallback((ms) => {
     if (ms === 0) return Promise.resolve()
     return new Promise(resolve => setTimeout(resolve, ms))
-  }
+  }, [])
 
-  const waitWhilePaused = async () => {
+  const waitWhilePaused = useCallback(async () => {
     while (pauseRef.current) {
       await sleep(50)
       if (raceRef.current.cancelled) return
     }
-  }
+  }, [sleep])
 
   const startRace = useCallback(async () => {
-    const baseArray = generateRandomArray(arraySize)
+    // Determine the array to sort
+    let baseArray
+    if (arrayType === 'custom') {
+      const parsed = parseCustomArray(customArrayInput)
+      if (!parsed) return // invalid input
+      baseArray = parsed
+    } else {
+      baseArray = generateArray(arrayType, arraySize)
+    }
 
     raceRef.current = { cancelled: false }
     pauseRef.current = false
@@ -52,15 +69,21 @@ export function useRace() {
     setWinner(null)
     setElapsed1(0)
     setElapsed2(0)
+    setElapsed3(0)
 
-    const gen1 = ALGORITHMS[algo1Key].fn(baseArray)
-    const gen2 = ALGORITHMS[algo2Key].fn(baseArray)
+    const players = [
+      { key: algo1Key, gen: ALGORITHMS[algo1Key].fn(baseArray), setState: setState1, setElapsed: setElapsed1 },
+      { key: algo2Key, gen: ALGORITHMS[algo2Key].fn(baseArray), setState: setState2, setElapsed: setElapsed2 },
+    ]
 
-    let done1 = false
-    let done2 = false
-    let startTime = performance.now()
-    let last1 = null
-    let last2 = null
+    if (algo3Key) {
+      players.push({ key: algo3Key, gen: ALGORITHMS[algo3Key].fn(baseArray), setState: setState3, setElapsed: setElapsed3 })
+    } else {
+      setState3(null)
+    }
+
+    const done = players.map(() => false)
+    const maxVal = Math.max(...baseArray)
 
     // Initial state
     const initState = {
@@ -71,48 +94,50 @@ export function useRace() {
       comparisons: 0,
       swaps: 0,
     }
-    setState1(initState)
-    setState2(initState)
+    players.forEach(p => p.setState(initState))
 
-    await sleep(500) // dramatic pause before start
+    await sleep(500) // dramatic pause
 
-    while ((!done1 || !done2) && !raceRef.current.cancelled) {
+    let winnerKey = null
+    const startTime = performance.now()
+
+    while (!done.every(Boolean) && !raceRef.current.cancelled) {
       await waitWhilePaused()
       if (raceRef.current.cancelled) break
 
-      if (!done1) {
-        const result = gen1.next()
-        if (result.done) {
-          done1 = true
-          if (!done2 && !winner) {
-            setWinner(algo1Key)
-          }
-        } else {
-          last1 = result.value
-          setState1(result.value)
-        }
-      }
+      for (let i = 0; i < players.length; i++) {
+        if (done[i]) continue
 
-      if (!done2) {
-        const result = gen2.next()
+        const result = players[i].gen.next()
         if (result.done) {
-          done2 = true
-          if (!done1 && !winner) {
-            setWinner(algo2Key)
+          done[i] = true
+          if (!winnerKey) {
+            // Check if all others are also done on this step
+            const allDoneThisStep = done.every(Boolean)
+            if (!allDoneThisStep) {
+              winnerKey = players[i].key
+              setWinner(players[i].key)
+            }
           }
         } else {
-          last2 = result.value
-          setState2(result.value)
+          players[i].setState(result.value)
+          // Sound: play tone for compared elements
+          if (isSoundEnabled() && result.value.comparing.length > 0) {
+            const idx = result.value.comparing[0]
+            playTone(result.value.array[idx], maxVal)
+          }
         }
       }
 
       const now = performance.now()
       const elapsed = now - startTime
-      if (!done1) setElapsed1(elapsed)
-      if (!done2) setElapsed2(elapsed)
+      for (let i = 0; i < players.length; i++) {
+        if (!done[i]) players[i].setElapsed(elapsed)
+      }
 
-      // If both just finished on same step
-      if (done1 && done2 && !winner) {
+      // If all just finished on same step
+      if (done.every(Boolean) && !winnerKey) {
+        winnerKey = 'tie'
         setWinner('tie')
       }
 
@@ -121,7 +146,20 @@ export function useRace() {
     }
 
     setIsRacing(false)
-  }, [arraySize, algo1Key, algo2Key])
+
+    // Record to race history
+    if (winnerKey && !raceRef.current.cancelled) {
+      const entry = {
+        id: Date.now(),
+        players: players.map(p => p.key),
+        winner: winnerKey,
+        arraySize: baseArray.length,
+        arrayType,
+        timestamp: new Date().toLocaleTimeString(),
+      }
+      setRaceHistory(prev => [entry, ...prev].slice(0, 5))
+    }
+  }, [arraySize, arrayType, customArrayInput, algo1Key, algo2Key, algo3Key, sleep, waitWhilePaused])
 
   const stopRace = useCallback(() => {
     raceRef.current.cancelled = true
@@ -142,13 +180,17 @@ export function useRace() {
 
   return {
     arraySize, setArraySize,
+    arrayType, setArrayType,
+    customArrayInput, setCustomArrayInput,
     speed, changeSpeed,
     algo1Key, setAlgo1Key,
     algo2Key, setAlgo2Key,
+    algo3Key, setAlgo3Key,
     isRacing, isPaused,
     winner,
-    state1, state2,
-    elapsed1, elapsed2,
+    state1, state2, state3,
+    elapsed1, elapsed2, elapsed3,
+    raceHistory,
     startRace, stopRace, togglePause,
   }
 }

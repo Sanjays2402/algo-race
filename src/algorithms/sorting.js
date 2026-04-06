@@ -224,11 +224,232 @@ export function* heapSort(arr) {
   yield { array: [...a], comparing: [], swapping: [], sorted: Array.from({ length: n }, (_, i) => i), comparisons, swaps }
 }
 
+export function* radixSort(arr) {
+  const a = [...arr]
+  const n = a.length
+  let comparisons = 0
+  let swaps = 0
+
+  const max = Math.max(...a)
+
+  for (let exp = 1; Math.floor(max / exp) > 0; exp *= 10) {
+    const output = new Array(n)
+    const count = new Array(10).fill(0)
+
+    // Count occurrences of each digit
+    for (let i = 0; i < n; i++) {
+      const digit = Math.floor(a[i] / exp) % 10
+      count[digit]++
+      comparisons++
+      yield { array: [...a], comparing: [i], swapping: [], sorted: [], comparisons, swaps }
+    }
+
+    // Cumulative count
+    for (let i = 1; i < 10; i++) {
+      count[i] += count[i - 1]
+    }
+
+    // Build output array (traverse from right for stability)
+    for (let i = n - 1; i >= 0; i--) {
+      const digit = Math.floor(a[i] / exp) % 10
+      output[count[digit] - 1] = a[i]
+      count[digit]--
+      swaps++
+    }
+
+    // Copy output back
+    for (let i = 0; i < n; i++) {
+      a[i] = output[i]
+      swaps++
+      yield { array: [...a], comparing: [], swapping: [i], sorted: [], comparisons, swaps }
+    }
+  }
+
+  yield { array: [...a], comparing: [], swapping: [], sorted: Array.from({ length: n }, (_, i) => i), comparisons, swaps }
+}
+
+export function* shellSort(arr) {
+  const a = [...arr]
+  const n = a.length
+  let comparisons = 0
+  let swaps = 0
+
+  for (let gap = Math.floor(n / 2); gap > 0; gap = Math.floor(gap / 2)) {
+    for (let i = gap; i < n; i++) {
+      const temp = a[i]
+      let j = i
+
+      while (j >= gap) {
+        comparisons++
+        yield { array: [...a], comparing: [j - gap, j], swapping: [], sorted: [], comparisons, swaps }
+
+        if (a[j - gap] > temp) {
+          a[j] = a[j - gap]
+          swaps++
+          yield { array: [...a], comparing: [], swapping: [j - gap, j], sorted: [], comparisons, swaps }
+          j -= gap
+        } else {
+          break
+        }
+      }
+
+      if (j !== i) {
+        a[j] = temp
+      }
+    }
+  }
+
+  yield { array: [...a], comparing: [], swapping: [], sorted: Array.from({ length: n }, (_, i) => i), comparisons, swaps }
+}
+
+export function* cocktailSort(arr) {
+  const a = [...arr]
+  const n = a.length
+  let comparisons = 0
+  let swaps = 0
+  const sorted = []
+  let start = 0
+  let end = n - 1
+  let swapped = true
+
+  while (swapped) {
+    swapped = false
+
+    // Forward pass (left to right)
+    for (let i = start; i < end; i++) {
+      comparisons++
+      yield { array: [...a], comparing: [i, i + 1], swapping: [], sorted: [...sorted], comparisons, swaps }
+
+      if (a[i] > a[i + 1]) {
+        ;[a[i], a[i + 1]] = [a[i + 1], a[i]]
+        swaps++
+        swapped = true
+        yield { array: [...a], comparing: [], swapping: [i, i + 1], sorted: [...sorted], comparisons, swaps }
+      }
+    }
+    sorted.push(end)
+    end--
+
+    if (!swapped) break
+    swapped = false
+
+    // Backward pass (right to left)
+    for (let i = end; i > start; i--) {
+      comparisons++
+      yield { array: [...a], comparing: [i - 1, i], swapping: [], sorted: [...sorted], comparisons, swaps }
+
+      if (a[i - 1] > a[i]) {
+        ;[a[i - 1], a[i]] = [a[i], a[i - 1]]
+        swaps++
+        swapped = true
+        yield { array: [...a], comparing: [], swapping: [i - 1, i], sorted: [...sorted], comparisons, swaps }
+      }
+    }
+    sorted.push(start)
+    start++
+  }
+
+  yield { array: [...a], comparing: [], swapping: [], sorted: Array.from({ length: n }, (_, i) => i), comparisons, swaps }
+}
+
 export const ALGORITHMS = {
-  bubble: { name: 'Bubble Sort', fn: bubbleSort, time: 'O(n²)', space: 'O(1)', best: 'O(n)', color: '#00f0ff' },
-  selection: { name: 'Selection Sort', fn: selectionSort, time: 'O(n²)', space: 'O(1)', best: 'O(n²)', color: '#ff00e5' },
-  insertion: { name: 'Insertion Sort', fn: insertionSort, time: 'O(n²)', space: 'O(1)', best: 'O(n)', color: '#39ff14' },
-  merge: { name: 'Merge Sort', fn: mergeSort, time: 'O(n log n)', space: 'O(n)', best: 'O(n log n)', color: '#ffe600' },
-  quick: { name: 'Quick Sort', fn: quickSort, time: 'O(n log n)', space: 'O(log n)', best: 'O(n log n)', color: '#b14aed' },
-  heap: { name: 'Heap Sort', fn: heapSort, time: 'O(n log n)', space: 'O(1)', best: 'O(n log n)', color: '#ff3131' },
+  bubble: {
+    name: 'Bubble Sort',
+    fn: bubbleSort,
+    time: 'O(n²)',
+    space: 'O(1)',
+    best: 'O(n)',
+    worst: 'O(n²)',
+    color: '#00f0ff',
+    stable: true,
+    description: 'Repeatedly steps through the list, compares adjacent elements, and swaps them if they\'re in the wrong order. Simple but inefficient for large datasets. The name comes from how smaller elements "bubble" to the top.',
+  },
+  selection: {
+    name: 'Selection Sort',
+    fn: selectionSort,
+    time: 'O(n²)',
+    space: 'O(1)',
+    best: 'O(n²)',
+    worst: 'O(n²)',
+    color: '#ff00e5',
+    stable: false,
+    description: 'Divides the array into sorted and unsorted regions. Repeatedly finds the minimum element from the unsorted region and places it at the end of the sorted region. Always performs O(n²) comparisons regardless of input.',
+  },
+  insertion: {
+    name: 'Insertion Sort',
+    fn: insertionSort,
+    time: 'O(n²)',
+    space: 'O(1)',
+    best: 'O(n)',
+    worst: 'O(n²)',
+    color: '#39ff14',
+    stable: true,
+    description: 'Builds the sorted array one element at a time by inserting each new element into its correct position among the already-sorted elements. Very efficient for small or nearly-sorted arrays.',
+  },
+  merge: {
+    name: 'Merge Sort',
+    fn: mergeSort,
+    time: 'O(n log n)',
+    space: 'O(n)',
+    best: 'O(n log n)',
+    worst: 'O(n log n)',
+    color: '#ffe600',
+    stable: true,
+    description: 'A divide-and-conquer algorithm that splits the array in half, recursively sorts each half, then merges them back together. Guaranteed O(n log n) performance but requires extra space.',
+  },
+  quick: {
+    name: 'Quick Sort',
+    fn: quickSort,
+    time: 'O(n log n)',
+    space: 'O(log n)',
+    best: 'O(n log n)',
+    worst: 'O(n²)',
+    color: '#b14aed',
+    stable: false,
+    description: 'Picks a pivot element, partitions the array around it (smaller left, larger right), then recursively sorts each partition. Very fast in practice despite O(n²) worst case.',
+  },
+  heap: {
+    name: 'Heap Sort',
+    fn: heapSort,
+    time: 'O(n log n)',
+    space: 'O(1)',
+    best: 'O(n log n)',
+    worst: 'O(n log n)',
+    color: '#ff3131',
+    stable: false,
+    description: 'Builds a max-heap from the array, then repeatedly extracts the maximum element to build the sorted result. In-place with guaranteed O(n log n) but poor cache locality.',
+  },
+  radix: {
+    name: 'Radix Sort',
+    fn: radixSort,
+    time: 'O(nk)',
+    space: 'O(n + k)',
+    best: 'O(nk)',
+    worst: 'O(nk)',
+    color: '#ff8c00',
+    stable: true,
+    description: 'A non-comparative integer sort that distributes elements into buckets by individual digits, processing from least to most significant digit. Complexity depends on the number of digits (k).',
+  },
+  shell: {
+    name: 'Shell Sort',
+    fn: shellSort,
+    time: 'O(n log² n)',
+    space: 'O(1)',
+    best: 'O(n log n)',
+    worst: 'O(n²)',
+    color: '#00ff88',
+    stable: false,
+    description: 'A generalization of insertion sort that allows exchange of far-apart elements using a decreasing gap sequence. Bridges the gap between simple O(n²) and complex O(n log n) sorts.',
+  },
+  cocktail: {
+    name: 'Cocktail Sort',
+    fn: cocktailSort,
+    time: 'O(n²)',
+    space: 'O(1)',
+    best: 'O(n)',
+    worst: 'O(n²)',
+    color: '#e040fb',
+    stable: true,
+    description: 'A bidirectional variant of bubble sort. Alternates between forward and backward passes through the list, which helps move elements in both directions and can be faster than standard bubble sort.',
+  },
 }
