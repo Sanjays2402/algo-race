@@ -2,10 +2,10 @@ import { useMemo } from 'react'
 import { motion } from 'framer-motion' // eslint-disable-line no-unused-vars
 
 const BAR_COLORS = {
-  default: '#2a2a4e',
-  comparing: '#ffe600',
-  swapping: '#ff3131',
-  sorted: '#39ff14',
+  default: ['#1a1a3e', '#2a2a5e'],
+  comparing: ['#ff8800', '#ffe600'],
+  swapping: ['#ff0000', '#ff5544'],
+  sorted: ['#00cc44', '#39ff14'],
 }
 
 const EMPTY = []
@@ -47,20 +47,26 @@ export default function Visualizer({ state, accentColor, label, onLabelClick }) 
         }}
       >
         {array.map((value, index) => {
-          let color = BAR_COLORS.default
+          let gradient = BAR_COLORS.default
           let glow = 'none'
 
           if (sortedSet.has(index)) {
-            color = BAR_COLORS.sorted
-            glow = `0 0 6px ${BAR_COLORS.sorted}80`
+            gradient = BAR_COLORS.sorted
+            glow = `0 0 6px ${BAR_COLORS.sorted[1]}80`
           }
           if (comparingSet.has(index)) {
-            color = BAR_COLORS.comparing
-            glow = `0 0 8px ${BAR_COLORS.comparing}90`
+            gradient = BAR_COLORS.comparing
+            glow = `0 0 8px ${BAR_COLORS.comparing[1]}90`
           }
           if (swappingSet.has(index)) {
-            color = BAR_COLORS.swapping
-            glow = `0 0 10px ${BAR_COLORS.swapping}90`
+            gradient = BAR_COLORS.swapping
+            glow = `0 0 10px ${BAR_COLORS.swapping[1]}90`
+          }
+
+          // Default bars get accent-colored gradient based on height
+          if (!sortedSet.has(index) && !comparingSet.has(index) && !swappingSet.has(index)) {
+            const intensity = value / maxVal
+            gradient = [`${accentColor}33`, `${accentColor}${Math.floor(40 + intensity * 60).toString(16)}`]
           }
 
           const heightPercent = (value / maxVal) * 100
@@ -73,7 +79,7 @@ export default function Visualizer({ state, accentColor, label, onLabelClick }) 
               style={{
                 width: `${barWidth}%`,
                 height: `${heightPercent}%`,
-                backgroundColor: color,
+                background: `linear-gradient(to top, ${gradient[0]}, ${gradient[1]})`,
                 boxShadow: glow,
                 marginLeft: `${gap * 0.5}px`,
                 marginRight: `${gap * 0.5}px`,
